@@ -20,6 +20,27 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+
+
+// verify JWT
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: 'unauthorized access' });
+  }
+  const token = authorization.split(' ')[1];
+  console.log('Token inside verifyJWT',token)
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ error: true, message: 'unauthorized access' })
+    }
+    req.decoded = decoded;
+    next();
+  })
+}
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -30,10 +51,11 @@ async function run() {
     const bookingCollection = client.db('carDoctor').collection('bookings')
 
     // jwt 
-    app.post('/jwt', (req, res)=>{
+    app.post('/jwt', (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h'})
-      res.send({token})
+      console.log(user)
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+      res.send({ token })
     })
 
 
@@ -57,18 +79,18 @@ async function run() {
     })
 
 
-    // bookings
-    app.get('/bookings', async (req, res) => {
+    // bookings get by email and jwt
+    app.get('/bookings', verifyJWT, async (req, res) => {
+      console.log(req.headers)
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email }
       }
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
-    
     })
 
-  
+
     app.post('/bookings', async (req, res) => {
       const booking = req.body;
       const result = await bookingCollection.insertOne(booking)
